@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sentinel Reporter - Live Dashboard</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #0f172a;
+            color: #e2e8f0;
+            line-height: 1.6;
+        }
+        .header {
+            background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+            padding: 20px 40px;
+            border-bottom: 2px solid #3b82f6;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .header h1 {
+            font-size: 24px;
+            color: #60a5fa;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 14px;
+        }
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #22c55e;
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 30px 40px;
+        }
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        .metric-card {
+            background: #1e293b;
+            border-radius: 12px;
+            padding: 20px;
+            border: 1px solid #334155;
+            transition: transform 0.2s, border-color 0.2s;
+        }
+        .metric-card:hover {
+            transform: translateY(-2px);
+            border-color: #3b82f6;
+        }
+        .metric-label {
+            font-size: 12px;
+            color: #94a3b8;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 8px;
+        }
+        .metric-value {
+            font-size: 28px;
+            font-weight: 700;
+            font-family: 'SF Mono', monospace;
+        }
+        .metric-value.green { color: #22c55e; }
+        .metric-value.red { color: #ef4444; }
+        .metric-value.yellow { color: #f59e0b; }
+        .metric-delta {
+            font-size: 13px;
+            margin-top: 4px;
+        }
+        .chart-container {
+            background: #1e293b;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+            border: 1px solid #334155;
+        }
+        .chart-title {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 15px;
+            color: #cbd5e1;
+        }
+        .report-content {
+            background: #1e293b;
+            border-radius: 12px;
+            padding: 30px;
+            border: 1px solid #334155;
+        }
+        .report-content h1 {
+            color: #60a5fa;
+            margin-bottom: 20px;
+        }
+        .report-content h2 {
+            color: #93c5fd;
+            margin: 25px 0 15px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid #334155;
+        }
+        .report-content table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 15px 0;
+        }
+        .report-content th,
+        .report-content td {
+            padding: 10px 15px;
+            text-align: left;
+            border-bottom: 1px solid #334155;
+        }
+        .report-content th {
+            background: #334155;
+            font-weight: 600;
+            color: #cbd5e1;
+        }
+        .report-content tr:hover {
+            background: #252f47;
+        }
+        .loading {
+            text-align: center;
+            padding: 60px;
+            color: #64748b;
+        }
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid #334155;
+            border-top-color: #3b82f6;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        .timestamp {
+            font-size: 12px;
+            color: #64748b;
+            text-align: right;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>📊 Sentinel Reporter</h1>
+        <div class="status">
+            <div class="status-dot"></div>
+            <span>CANLI</span>
+        </div>
+    </div>
+
+    <div class="container">
+        <div id="loading" class="loading">
+            <div class="spinner"></div>
+            <p>Rapor yükleniyor...</p>
+        </div>
+
+        <div id="report" style="display: none;">
+            <!-- Report will be injected here -->
+        </div>
+
+        <div class="timestamp" id="timestamp"></div>
+    </div>
+
+    <script>
+        const reportDiv = document.getElementById('report');
+        const loadingDiv = document.getElementById('loading');
+        const timestampDiv = document.getElementById('timestamp');
+
+        // SSE connection for live updates
+        function connectSSE() {
+            const evtSource = new EventSource('/api/stream');
+
+            evtSource.addEventListener('report', function(e) {
+                loadingDiv.style.display = 'none';
+                reportDiv.style.display = 'block';
+                reportDiv.innerHTML = e.data;
+                timestampDiv.textContent = 'Son güncelleme: ' + new Date().toLocaleString('tr-TR');
+            });
+
+            evtSource.addEventListener('heartbeat', function(e) {
+                // Keepalive, ignore
+            });
+
+            evtSource.onerror = function() {
+                console.log('SSE bağlantısı kapandı, 5 saniye sonra yeniden bağlanılacak...');
+                evtSource.close();
+                setTimeout(connectSSE, 5000);
+            };
+        }
+
+        // Initial load
+        fetch('/api/report')
+            .then(r => r.text())
+            .then(html => {
+                loadingDiv.style.display = 'none';
+                reportDiv.style.display = 'block';
+                reportDiv.innerHTML = html;
+                timestampDiv.textContent = 'Son güncelleme: ' + new Date().toLocaleString('tr-TR');
+            })
+            .catch(err => {
+                console.error('İlk yükleme hatası:', err);
+            });
+
+        // Start SSE
+        connectSSE();
+
+        // Auto-refresh every 30 seconds as fallback
+        setInterval(() => {
+            fetch('/api/report')
+                .then(r => r.text())
+                .then(html => {
+                    reportDiv.innerHTML = html;
+                    timestampDiv.textContent = 'Son güncelleme: ' + new Date().toLocaleString('tr-TR');
+                });
+        }, 30000);
+    </script>
+</body>
+</html>

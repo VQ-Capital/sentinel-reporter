@@ -1,0 +1,127 @@
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                     SENTINEL-REPORTER v0.1.0                                  ║
+║              Tamamen Rust ile Yazılmış HFT Raporlama Sistemi                  ║
+╠══════════════════════════════════════════════════════════════════════════════╣
+
+📦 PROJE ÖZETİ
+════════════════
+sentinel-reporter, VQ-CAPITAL HFT Optimizer'ın CSV log dosyasını izleyerek 
+otomatik olarak:
+  • Markdown rapor üretir (grafikler inline SVG)
+  • Başarı kriterlerini değerlendirir (🟢/🟡/🔴)
+  • Risk skoru hesaplar (0-100)
+  • Aşırı uyum (overfitting) tespit eder
+  • Canlı web dashboard sunar (opsiyonel)
+
+🚀 KULLANIM
+═══════════
+  # İzleme modu (varsayılan)
+  ./sentinel-reporter --csv optimization_audit_log.csv --output rapor.md
+
+  # Tek seferlik rapor
+  ./sentinel-reporter --csv train-30d.log --once
+
+  # Web dashboard ile
+  ./sentinel-reporter --csv train-30d.log --web --port 8080
+
+📁 PROJE YAPISI
+════════════════
+sentinel-reporter/
+├── Cargo.toml                  # Bağımlılıklar ve build config
+├── README.md                   # Dokümantasyon
+├── build.sh                    # Build script
+├── .gitignore
+├── SAMPLE_REPORT.md            # Örnek çıktı
+├── src/
+│   ├── main.rs                  # CLI entry point (clap)
+│   ├── models/
+│   │   ├── mod.rs
+│   │   ├── metrics.rs         # GenerationRecord, TrainingSession, Trend
+│   │   └── criteria.rs        # SuccessCriteria, RiskScore (0-100)
+│   ├── analyzer/
+│   │   ├── mod.rs
+│   │   ├── parser.rs          # CSV okuyucu (csv crate)
+│   │   └── calculator.rs      # İstatistik hesaplayıcı
+│   ├── reporter/
+│   │   ├── mod.rs
+│   │   ├── markdown.rs        # Markdown rapor üretici
+│   │   └── svg_charts.rs      # Pure Rust SVG grafik motoru
+│   ├── watcher/
+│   │   ├── mod.rs
+│   │   └── fs_watcher.rs      # notify crate ile dosya izleme
+│   └── dashboard/
+│       ├── mod.rs
+│       └── server.rs          # Axum SSE web sunucusu (opsiyonel)
+└── templates/
+    └── dashboard.html         # Canlı web arayüzü
+
+🔧 BAĞIMLILIKLAR
+════════════════
+• tokio         — Async runtime
+• notify        — Cross-platform file watcher
+• csv           — CSV parsing
+• serde         — Serialization
+• chrono        — Time handling
+• clap          — CLI parser
+• tracing       — Logging
+• anyhow        — Error handling
+• axum          — Web framework (opsiyonel, dashboard feature)
+• tower-http    — HTTP middleware (opsiyonel)
+
+📊 BAŞARI KRİTERLERİ
+════════════════════
+| Kriter        | 🟢 BAŞARILI | 🟡 UYARI   | 🔴 BAŞARISIZ |
+|---------------|------------|-----------|-------------|
+| PnL           | > 0$       | -5$ ~ 0$  | < -5$       |
+| WinRate       | > 55%      | 45-55%    | < 45%       |
+| Profit Factor | > 1.5      | 1.0-1.5   | < 1.0       |
+| Sharpe        | > 1.0      | 0-1.0     | < 0         |
+| Max Drawdown  | < 10%      | 10-25%    | > 25%       |
+| Daily Trades  | > 100      | 20-100    | < 20        |
+
+🎯 RISK SKORU HESAPLAMASI (0-100)
+══════════════════════════════════
+  • PnL katkısı:        0-25 puan
+  • WinRate katkısı:    0-20 puan
+  • Profit Factor:      0-20 puan
+  • Sharpe Ratio:       0-20 puan
+  • Max Drawdown:       0-15 puan
+
+  0-29:  🟢 DÜŞÜK RİSK
+  30-59: 🟡 ORTA RİSK
+  60-100:🔴 YÜKSEK RİSK
+
+💡 ÖNE ÇIKAN ÖZELLİKLER
+═══════════════════════
+1. Pure Rust SVG Charts — Python/matplotlib GEREKTİRMEZ
+   → SVG grafikler base64 inline olarak markdown'a gömülür
+   → Tarayıcıda veya VS Code preview'da doğrudan görünür
+
+2. Gerçek Zamanlı İzleme
+   → notify crate ile dosya sistemi olaylarını dinler
+   → CSV değişikliğinde 2 saniyelik debounce ile rapor günceller
+
+3. Aşırı Uyum Tespiti
+   → İşlem sayısı aşırı düşüşü (>50%) algılar
+   → WinRate rastgele tahminden kötü mü kontrol eder
+   → PF, Sharpe, Drawdown sınırlarını izler
+   → Parametre volatilitesini ölçer
+
+4. Web Dashboard (SSE)
+   → Server-Sent Events ile canlı rapor akışı
+   → Axum web framework ile minimal footprint
+   → Dark mode UI, responsive grid
+
+🛠️ GELİŞTİRME
+══════════════
+  cargo test          # Testleri çalıştır
+  cargo fmt           # Kod formatla
+  cargo clippy        # Lint kontrolü
+  cargo doc --open    # Dokümantasyon
+
+📜 LİSANS
+═════════
+MIT License — VQ-CAPITAL Team
+
+╚══════════════════════════════════════════════════════════════════════════════╝
